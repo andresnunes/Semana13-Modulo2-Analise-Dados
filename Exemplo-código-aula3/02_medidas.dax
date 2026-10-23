@@ -1,0 +1,281 @@
+// =====================================================================================
+// 02 - MEDIDAS (selecione a tabela "Medidas" > Nova medida, e cole UMA de cada vez)
+// =====================================================================================
+// Para cada medida: copie a partir do nome até o fim da fórmula. O formato e a
+// pasta de exibição estão no comentário acima de cada uma (e no README).
+// Abreviação usada nos comentários: fato = fato_item_contratado
+// =====================================================================================
+
+
+
+// #####################################################################################
+// PASTA: P1 Economia
+// #####################################################################################
+
+// [1] Formato: Moeda R$ (2 casas) | Pasta: P1 Economia | Prova real: R$ 6.867.663.469,91
+Valor Estimado Comparável =
+VAR _EstimadoComparavel =
+    CALCULATE (
+        SUM ( fato_item_contratado[valor_total_estimado] ),
+        fato_item_contratado[comparavel] = 1
+    )
+RETURN
+    _EstimadoComparavel
+
+
+// [2] Formato: Moeda R$ (2 casas) | Pasta: P1 Economia | Prova real: R$ 8.044.498.805,74
+Volume Homologado =
+VAR _Volume =
+    SUM ( fato_item_contratado[valor_total_homologado] )
+RETURN
+    _Volume
+
+
+// [3] Formato: Moeda R$ (2 casas) | Pasta: P1 Economia | Prova real: R$ 992.861.686,95
+// Em Credenciamento (sem item comparável) as duas VARs ficam em branco -> resultado em branco.
+Economia (R$) =
+VAR _EstimadoComparavel = [Valor Estimado Comparável]
+VAR _HomologadoComparavel =
+    CALCULATE ( [Volume Homologado], fato_item_contratado[comparavel] = 1 )
+RETURN
+    _EstimadoComparavel - _HomologadoComparavel
+
+
+// [4] Formato: Porcentagem (2 casas) | Pasta: P1 Economia | Prova real: 14,46%
+// SOMA ÷ SOMA (nunca média de percentuais). DIVIDE devolve vazio se o denominador for 0/vazio.
+Economia % =
+VAR _Economia = [Economia (R$)]
+VAR _EstimadoComparavel = [Valor Estimado Comparável]
+RETURN
+    DIVIDE ( _Economia, _EstimadoComparavel )
+
+
+// [5] Formato: Porcentagem (1 casa) | Pasta: P1 Economia | Prova real: 89,1% (5.457 de 6.126)
+% de Itens Comparáveis =
+VAR _ItensComparaveis =
+    CALCULATE ( COUNTROWS ( fato_item_contratado ), fato_item_contratado[comparavel] = 1 )
+VAR _TotalItens =
+    COUNTROWS ( fato_item_contratado )
+RETURN
+    DIVIDE ( _ItensComparaveis, _TotalItens )
+
+
+
+// #####################################################################################
+// PASTA: P2 Fornecedores
+// #####################################################################################
+
+// [6] Formato: Porcentagem (2 casas) | Pasta: P2 Fornecedores
+// O denominador tira o filtro de fornecedor, mas mantém os outros (mês, modalidade, UF...).
+Participação do Fornecedor % =
+VAR _VolumeFornecedor = [Volume Homologado]
+VAR _VolumeTotal =
+    CALCULATE ( [Volume Homologado], ALL ( dim_fornecedor ) )
+RETURN
+    DIVIDE ( _VolumeFornecedor, _VolumeTotal )
+
+
+// [7] Formato: Número inteiro | Pasta: P2 Fornecedores
+// Só mostra a posição quando a linha é UM fornecedor (CNPJ/CPF) e ele tem volume.
+// Use no visual a coluna dim_fornecedor[ni_fornecedor] (o mesmo nome pode ter vários CNPJ).
+Ranking do Fornecedor =
+VAR _Volume = [Volume Homologado]
+VAR _Posicao =
+    RANKX ( ALL ( dim_fornecedor ), [Volume Homologado], , DESC, DENSE )
+RETURN
+    IF ( HASONEVALUE ( dim_fornecedor[ni_fornecedor] ) && NOT ISBLANK ( _Volume ), _Posicao )
+
+
+// [8] Formato: Porcentagem (2 casas) | Pasta: P2 Fornecedores
+// TOPN pega os 10 maiores; KEEPFILTERS soma só o volume deles; ALL dá o total.
+Concentração Top 10 % =
+VAR _Top10 =
+    TOPN ( 10, ALL ( dim_fornecedor ), [Volume Homologado], DESC )
+VAR _VolumeTop10 =
+    CALCULATE ( [Volume Homologado], KEEPFILTERS ( _Top10 ) )
+VAR _VolumeTotal =
+    CALCULATE ( [Volume Homologado], ALL ( dim_fornecedor ) )
+RETURN
+    DIVIDE ( _VolumeTop10, _VolumeTotal )
+
+
+
+// #####################################################################################
+// PASTA: P3 Modalidades
+// #####################################################################################
+
+// [9] Formato: Porcentagem (1 casa) | Pasta: P3 Modalidades
+// Serve para qualquer "linha": modalidade, UF/região ou perfil do gasto.
+// O total tira o filtro dessas três dimensões e mantém o do Calendário.
+Participação no Volume % =
+VAR _VolumeLinha = [Volume Homologado]
+VAR _VolumeTotal =
+    CALCULATE (
+        [Volume Homologado],
+        REMOVEFILTERS ( dim_modalidade ),
+        REMOVEFILTERS ( dim_localidade ),
+        REMOVEFILTERS ( fato_item_contratado[perfil_gasto] )
+    )
+RETURN
+    DIVIDE ( _VolumeLinha, _VolumeTotal )
+
+
+// [10] Formato: NÚMERO DECIMAL com 1 casa (ex.: 2,5) — NÃO usar formato % | Pasta: P3 Modalidades
+// Positivo = deságio acima da média geral (14,46%). Vazio em Credenciamento.
+Deságio vs Média Geral (p.p.) =
+VAR _EconomiaLinha = [Economia %]
+VAR _EconomiaGeral =
+    CALCULATE ( [Economia %], REMOVEFILTERS () )
+RETURN
+    IF ( NOT ISBLANK ( _EconomiaLinha ), ( _EconomiaLinha - _EconomiaGeral ) * 100 )
+
+
+
+// #####################################################################################
+// PASTA: P4 Ciclo
+// #####################################################################################
+
+// [11] Formato: Número decimal (1 casa) | Pasta: P4 Ciclo | Prova real: 48,1
+// AVERAGE ignora os itens com dias_ciclo vazio (homologação anulada pela regra 7).
+Ciclo Médio (dias) =
+VAR _CicloMedio =
+    AVERAGE ( fato_item_contratado[dias_ciclo] )
+RETURN
+    _CicloMedio
+
+
+// [12] Formato: Número inteiro | Pasta: P4 Ciclo | Prova real: 611
+Ciclo Máximo (dias) =
+VAR _CicloMaximo =
+    MAX ( fato_item_contratado[dias_ciclo] )
+RETURN
+    _CicloMaximo
+
+
+// [13] Formato: Número inteiro | Pasta: P4 Ciclo | Prova real: 230
+// COUNT ignora vazios: total de itens − itens com ciclo = itens sem ciclo.
+Itens sem Ciclo =
+VAR _TotalItens =
+    COUNTROWS ( fato_item_contratado )
+VAR _ItensComCiclo =
+    COUNT ( fato_item_contratado[dias_ciclo] )
+RETURN
+    _TotalItens - _ItensComCiclo
+
+
+
+// #####################################################################################
+// PASTA: P5 Regional
+// #####################################################################################
+
+// [14] Formato: Número inteiro | Pasta: P5 Regional | Prova real: 363
+// Conta na FATO (sk_orgao) para responder aos filtros de UF, região, mês etc.
+// (o filtro não "sobe" da fato para a dimensão, então contar na dim_orgao daria sempre 363).
+Qtd Unidades Compradoras =
+VAR _Unidades =
+    DISTINCTCOUNT ( fato_item_contratado[sk_orgao] )
+RETURN
+    _Unidades
+
+
+
+// #####################################################################################
+// PASTA: P6 Perfil
+// #####################################################################################
+
+// [15] Formato: Moeda R$ (2 casas) | Pasta: P6 Perfil | Prova real (geral): R$ 1.313.173,16
+Ticket Médio por Item (R$) =
+VAR _Volume = [Volume Homologado]
+VAR _QtdItens =
+    COUNTROWS ( fato_item_contratado )
+RETURN
+    DIVIDE ( _Volume, _QtdItens )
+
+
+
+// #####################################################################################
+// PASTA: Extras (opcionais, enriquecem a história e o tooltip)
+// #####################################################################################
+
+// [E1] Formato: Número inteiro | Pasta: Extras | Prova real: 6.126
+Qtd Itens =
+VAR _Itens =
+    COUNTROWS ( fato_item_contratado )
+RETURN
+    _Itens
+
+
+// [E2] Formato: Número inteiro | Pasta: Extras | Prova real: 2.652
+Qtd Fornecedores =
+VAR _Fornecedores =
+    DISTINCTCOUNT ( fato_item_contratado[sk_fornecedor] )
+RETURN
+    _Fornecedores
+
+
+// [E3] Formato: Número inteiro | Pasta: Extras | Prova real: 27
+// Iteradora (SUMX): percorre a fato linha a linha e soma 1 quando homologado > estimado.
+Itens com Sobrepreço =
+VAR _Itens =
+    SUMX (
+        fato_item_contratado,
+        IF (
+            fato_item_contratado[valor_total_homologado]
+                > fato_item_contratado[valor_total_estimado],
+            1
+        )
+    )
+RETURN
+    _Itens + 0
+
+
+// [E4] Formato: Moeda R$ (2 casas) | Pasta: Extras
+// Mesma soma do volume, mas o Calendário filtra pela DATA DE HOMOLOGAÇÃO (relação inativa).
+Volume por Data de Homologação =
+VAR _Volume =
+    CALCULATE (
+        [Volume Homologado],
+        USERELATIONSHIP ( Calendario[Data], fato_item_contratado[data_homologacao] )
+    )
+RETURN
+    _Volume
+
+
+// [E5] Formato: Porcentagem (1 casa) | Pasta: Extras
+// Volume do mês contra o mês anterior (use com Calendario[Ano-Mês] no eixo).
+Variação Mensal % =
+VAR _VolumeAtual = [Volume Homologado]
+VAR _VolumeMesAnterior =
+    CALCULATE ( [Volume Homologado], DATEADD ( Calendario[Data], -1, MONTH ) )
+RETURN
+    IF (
+        NOT ISBLANK ( _VolumeMesAnterior ),
+        DIVIDE ( _VolumeAtual - _VolumeMesAnterior, _VolumeMesAnterior )
+    )
+
+
+// [E6] Formato: Moeda R$ (2 casas) | Pasta: Extras
+Volume Acumulado no Ano =
+VAR _Acumulado =
+    TOTALYTD ( [Volume Homologado], Calendario[Data] )
+RETURN
+    _Acumulado
+
+
+// [E7] Formato: Texto | Pasta: Extras
+// Título da página de tooltip: diz sobre o que o usuário passou o mouse.
+Título Dinâmico do Tooltip =
+VAR _Contexto =
+    SWITCH (
+        TRUE (),
+        HASONEVALUE ( dim_fornecedor[ni_fornecedor] ), "Fornecedor: " & SELECTEDVALUE ( dim_fornecedor[nome_fornecedor] ),
+        HASONEVALUE ( dim_orgao[nome_orgao] ),         "Órgão: " & SELECTEDVALUE ( dim_orgao[nome_orgao] ),
+        HASONEVALUE ( dim_localidade[uf_sigla] ),      "UF: " & SELECTEDVALUE ( dim_localidade[uf_nome] ),
+        HASONEVALUE ( dim_localidade[regiao] ),        "Região: " & SELECTEDVALUE ( dim_localidade[regiao] ),
+        HASONEVALUE ( dim_modalidade[nome_modalidade] ), "Modalidade: " & SELECTEDVALUE ( dim_modalidade[nome_modalidade] ),
+        HASONEVALUE ( fato_item_contratado[perfil_gasto] ), "Perfil: " & SELECTEDVALUE ( fato_item_contratado[perfil_gasto] ),
+        HASONEVALUE ( Calendario[Ano-Mês] ),           "Mês: " & SELECTEDVALUE ( Calendario[Ano-Mês] ),
+        "Visão geral"
+    )
+RETURN
+    _Contexto & " | " & FORMAT ( [Qtd Itens], "#,0" ) & " itens"

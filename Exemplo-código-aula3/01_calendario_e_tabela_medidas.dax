@@ -1,0 +1,73 @@
+// =====================================================================================
+// 01 - TABELAS CALCULADAS (Modelagem > Nova tabela)
+// =====================================================================================
+// Pré-requisito: renomeie as tabelas importadas do PostgreSQL para tirar o prefixo
+// "public" (ex.: "public fato_item_contratado" -> "fato_item_contratado").
+// =====================================================================================
+
+
+// -------------------------------------------------------------------------------------
+// 1) Tabela dedicada às medidas
+//    Depois de criar: oculte a coluna "x". Quando a primeira medida existir aqui,
+//    o Power BI passa a mostrar a tabela com o ícone de calculadora no topo da lista.
+// -------------------------------------------------------------------------------------
+Medidas =
+ROW ( "x", BLANK () )
+
+
+// -------------------------------------------------------------------------------------
+// 2) Calendário dinâmico
+//    - Limites vindos dos dados (nada digitado): do 1º dia do ano da menor data
+//      até o último dia do ano da maior data, olhando as DUAS datas da fato.
+//    - Nome do mês em português via SWITCH (não depende do idioma do Windows).
+// -------------------------------------------------------------------------------------
+Calendario =
+VAR _DataMin =
+    MIN (
+        MIN ( fato_item_contratado[data_publicacao] ),
+        MIN ( fato_item_contratado[data_homologacao] )
+    )
+VAR _DataMax =
+    MAX (
+        MAX ( fato_item_contratado[data_publicacao] ),
+        MAX ( fato_item_contratado[data_homologacao] )
+    )
+VAR _Datas =
+    CALENDAR ( DATE ( YEAR ( _DataMin ), 1, 1 ), DATE ( YEAR ( _DataMax ), 12, 31 ) )
+RETURN
+    ADDCOLUMNS (
+        SELECTCOLUMNS ( _Datas, "Data", [Date] ),
+        "Ano", YEAR ( [Data] ),
+        "Mês Número", MONTH ( [Data] ),
+        "Mês",
+            SWITCH (
+                MONTH ( [Data] ),
+                1, "Janeiro",  2, "Fevereiro", 3, "Março",     4, "Abril",
+                5, "Maio",     6, "Junho",     7, "Julho",     8, "Agosto",
+                9, "Setembro", 10, "Outubro",  11, "Novembro", 12, "Dezembro"
+            ),
+        "Mês Abrev",
+            SWITCH (
+                MONTH ( [Data] ),
+                1, "Jan", 2, "Fev", 3, "Mar", 4, "Abr",  5, "Mai",  6, "Jun",
+                7, "Jul", 8, "Ago", 9, "Set", 10, "Out", 11, "Nov", 12, "Dez"
+            ),
+        "Trimestre", "T" & QUARTER ( [Data] ),
+        "Ano-Mês Número", YEAR ( [Data] ) * 100 + MONTH ( [Data] ),          // AAAAMM
+        "Ano-Mês", FORMAT ( [Data], "yyyy-MM" ),
+        "Dia da Semana Número", WEEKDAY ( [Data], 2 ),                      // 1 = segunda
+        "Dia da Semana",
+            SWITCH (
+                WEEKDAY ( [Data], 2 ),
+                1, "Seg", 2, "Ter", 3, "Qua", 4, "Qui", 5, "Sex", 6, "Sáb", 7, "Dom"
+            )
+    )
+
+// Depois de criar o Calendário (ver README desta pasta):
+//   - Mês           -> Classificar por coluna: Mês Número
+//   - Mês Abrev     -> Classificar por coluna: Mês Número
+//   - Ano-Mês       -> Classificar por coluna: Ano-Mês Número
+//   - Dia da Semana -> Classificar por coluna: Dia da Semana Número
+//   - Marcar como tabela de datas (coluna Data)
+//   - Calendario[Data] 1:N fato_item_contratado[data_publicacao]   (ATIVA)
+//   - Calendario[Data] 1:N fato_item_contratado[data_homologacao]  (INATIVA, usada com USERELATIONSHIP)
