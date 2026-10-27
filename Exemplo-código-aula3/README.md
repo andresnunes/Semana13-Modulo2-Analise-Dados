@@ -6,6 +6,8 @@ Arquivos desta pasta:
 |---|---|
 | [01_calendario_e_tabela_medidas.dax](01_calendario_e_tabela_medidas.dax) | Tabelas calculadas: `Medidas` (tabela dedicada) e `Calendario` (dinâmico) |
 | [02_medidas.dax](02_medidas.dax) | As 15 medidas obrigatórias (seção 4.6) + 7 extras opcionais |
+| [guia_do_projeto/](guia_do_projeto/README.md) | Glossário de conceitos, roteiro de entrega e notebook com exemplos executáveis e conferência do seu trabalho |
+| [esqueleto_criterios.md](esqueleto_criterios.md) | Checklist dos 15 critérios de avaliação, roteiro do vídeo e tabela de conferência com a prova real |
 | [organizacao_do_projeto.md](organizacao_do_projeto.md) | Exemplo de estrutura de pastas, papel de cada arquivo, commits por Sprint e esqueleto do README |
 | [exemplo_sql/](exemplo_sql/README.md) | Banco de exemplo com dados fictícios (`pncp_exemplo`) para testar o DAX no Power BI |
 

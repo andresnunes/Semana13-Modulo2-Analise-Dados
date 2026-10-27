@@ -35,6 +35,9 @@ projeto-pncp-controladoria/
 │   ├── 01_criar_banco.sql        ← DDL: tabelas, PK, FK, UNIQUE, CHECK
 │   └── 02_perguntas.sql          ← as 6 perguntas de negócio
 │
+├── notebooks/                    ← (opcional) exploração e auditoria; o pipeline continua em src/
+│   └── 01_auditoria_dados_brutos.ipynb
+│
 ├── powerbi/
 │   ├── pncp_controladoria.pbix   ← dashboard entregue
 │   └── dax/                      ← cópia em texto das medidas (facilita revisar no GitHub)
